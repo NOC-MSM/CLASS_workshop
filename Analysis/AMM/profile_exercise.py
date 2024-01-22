@@ -4,6 +4,7 @@ sys.path.append("/home/users/ryapat30/NOC/COAsT")
 import coast
 import xarray as xr
 import matplotlib.pyplot as plt
+import numpy as np
 
 def plot_surface_differences():
     """ plot surface temperature differences between model and observations """ 
@@ -12,7 +13,7 @@ def plot_surface_differences():
     path = "/gws/nopw/j04/jmmp/tmp_slwa/AMM7_SSB_sample/"
     model_path = path +  "amm7_1d_20040101_20040131_grid_T.nc"
     jmmp_path = "/gws/nopw/j04/jmmp/"
-    domcfg_path = jmmp_path + "public/AMM15/DOMAIN_CFG/GEG_SF12.nc"
+    domcfg_path = path + "amm7_SSB_mesh_mask.nc"
     
     # set coast config paths
     cfg_path = "/home/users/ryapat30/NOC/COAsT/config/"
@@ -34,21 +35,29 @@ def plot_surface_differences():
     en4_profiles = coast.Profile(config=en4_json)
     en4_profiles.dataset = xr.open_dataset(fn_prof, chunks={'id_dim':10000})
 
+    # remove interpolation non-comliant variables
+    var_list = (['qc_potential_temperature', 'qc_practical_salinity',
+                 'qc_depth', 'qc_time', 'qc_flags_profiles', 'qc_flags_levels'])
+    en4_profiles.dataset = en4_profiles.dataset.drop_vars(var_list)
+ 
+    # initialise COAST object
+    analysis = coast.ProfileAnalysis()
+
     # interpolate to commom grid
     en4_profiles, nemo_profiles = interp_model_to_obs(en4_profiles, nemo)
-    en4_reg_dep, nemo_reg_depth = interp_to_regular_depth(obs_profiles,
-                                                          nemo_profiles)
+    en4_reg_dep, nemo_reg_dep = interp_to_regular_depth(analysis, en4_profiles,
+                                                                  nemo_profiles)
 
     # difference between nemo and obs
-    surface_erros = get_surface_differences(en4_reg_depth, nemo_reg_depth)
+    surf_errors = get_surface_differences(analysis, en4_reg_dep, nemo_reg_dep)
 
     # Plot (obs. - model) upper 10m averaged temperatures
-    surface_errors.plot_map(var_str="diff_temperature")
+    surf_errors.plot_map(var_str="diff_temperature")
   
     # save
     plt.savefig("surface_temperature_errors.png")
 
-def interp_model_to_obs(obs_profiles, model, too_far):
+def interp_model_to_obs(obs_profiles, model, too_far=7):
     """
     Interpolate model to horizontal positions of observations
 
@@ -62,17 +71,14 @@ def interp_model_to_obs(obs_profiles, model, too_far):
     # drop data where interpolation distance is greater than "too_far"
     keep_indices = model_profiles.dataset.interp_dist <= too_far
     model_profiles = model_profiles.isel(id_dim=keep_indices)
-    obs_profile = obs_profiles.isel(id_dim=keep_indices)
+    obs_profiles = obs_profiles.isel(id_dim=keep_indices)
 
     return obs_profiles, model_profiles
 
-def interp_to_regular_depth(obs_profiles, model_profiles):
+def interp_to_regular_depth(analysis, obs_profiles, model_profiles):
     """
     Interpolate model and observations to common vertical grid
     """
-
-    # initialise COAST object
-    analysis = coast.ProfileAnalysis()
 
     # Set target depth levels
     ref_depth = np.concatenate((np.arange(1, 100, 10),
@@ -88,13 +94,15 @@ def interp_to_regular_depth(obs_profiles, model_profiles):
                                          model_profiles_obs_grid,
                                          ref_depth)
 
+    print (obs_profiles.dataset)
     # Interpolate obs. profiles to reference depths
-    obs_profiles_ref_grid = analysis.interpolate_vertical(obs_rofiles,
+    obs_profiles_ref_grid = analysis.interpolate_vertical(obs_profiles,
                                                           ref_depth)
 
     return obs_profiles_ref_grid, model_profiles_ref_grid
 
-def get_surface_differences(obs_profiles, model_profiles, lower_bound=10):
+def get_surface_differences(analysis, obs_profiles, model_profiles,
+                            lower_bound=10):
     """
     calculate difference between model and observations at the surface
     """
