@@ -20,4 +20,6 @@ steps:
 
 4) add environment to ipython kernel
 
-```conda run --name coast_wrk_shp python -m ipykernel install --user --name coast_wrk_shp```
+```
+conda run --name coast_wrk_shp python -m ipykernel install --user --name coast_wrk_shp
+```
