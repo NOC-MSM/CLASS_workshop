@@ -22,7 +22,7 @@ module load jaspy
 conda init
 ```
 
-4) Create conda environment (using mamba - it is faster!). Ensure you are located in the directory that contains the `environment.yml` file for this step.
+4) Create conda environment (using mamba - it is faster!). Ensure you are located in the directory that contains the `environment.yml` file for this step (CLASS_workshop/Analysis/AMM/Notebooks/).
 ```
 mamba env create -f environment.yml
 ```
